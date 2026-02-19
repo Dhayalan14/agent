@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: 28px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        /* Spectrum Visualizer */
+        .visualizer-container {
+            display: none;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 4px;
+            height: 80px;
+            padding: 20px;
+            margin: 20px 0;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .visualizer-container.active {
+            display: flex;
+        }
+
+        .bar {
+            width: 6px;
+            background: linear-gradient(to top, #00d4ff, #7b2cbf, #ff006e);
+            border-radius: 3px;
+            transition: height 0.05s ease;
+            min-height: 4px;
+        }
+
+        .visualizer-label {
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 10px;
+        }
+
+        .visualizer-label.user {
+            color: #00d4ff;
+        }
+
+        .visualizer-label.ai {
+            color: #7b2cbf;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .call-btn {
+            background: linear-gradient(135deg, #7b2cbf, #9d4edd);
+            color: white;
+        }
+
+        .call-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(123, 44, 191, 0.3);
+        }
+
+        .call-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+
+        .status.info {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .status.success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .status.error {
+            background: rgba(255, 71, 87, 0.1);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            margin: 25px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Voice Assistant</h1>
+        <div class="subtitle">Powered by LiveKit & Gemini</div>
+
+        <button class="call-btn" id="callBtn" onclick="startCall()">
+            🎤 Start Voice Call
+        </button>
+
+        <!-- Audio Spectrum Visualizers -->
+        <div class="visualizer-container" id="userVisualizer">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        <div class="visualizer-label user" id="userLabel" style="display:none">🎤 You are speaking...</div>
+
+        <div class="visualizer-container" id="aiVisualizer">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        <div class="visualizer-label ai" id="aiLabel" style="display:none">🤖 AI is speaking...</div>
+
+        <div class="status info" id="status">
+            Click Start to begin
+        </div>
+    </div>
+
+    <script>
+        let audioContext = null;
+        let userAnalyser = null;
+        let aiAnalyser = null;
+        let userAnimationId = null;
+        let aiAnimationId = null;
+
+        function visualizeBars(analyser, container) {
+            const bars = container.querySelectorAll('.bar');
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            function animate() {
+                analyser.getByteFrequencyData(dataArray);
+                const step = Math.floor(dataArray.length / bars.length);
+
+                bars.forEach((bar, i) => {
+                    const value = dataArray[i * step];
+                    const height = Math.max(4, (value / 255) * 60);
+                    bar.style.height = height + 'px';
+                });
+
+                return requestAnimationFrame(() => visualizeBars(analyser, container));
+            }
+            return animate();
+        }
+
+        function startUserVisualizer(stream) {
+            if (!audioContext) audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(stream);
+            userAnalyser = audioContext.createAnalyser();
+            userAnalyser.fftSize = 64;
+            source.connect(userAnalyser);
+
+            const container = document.getElementById('userVisualizer');
+            container.classList.add('active');
+            document.getElementById('userLabel').style.display = 'block';
+            userAnimationId = visualizeBars(userAnalyser, container);
+        }
+
+        function startAIVisualizer(audioElement) {
+            if (!audioContext) audioContext = new AudioContext();
+            const source = audioContext.createMediaElementSource(audioElement);
+            aiAnalyser = audioContext.createAnalyser();
+            aiAnalyser.fftSize = 64;
+            source.connect(aiAnalyser);
+            source.connect(audioContext.destination);
+
+            const container = document.getElementById('aiVisualizer');
+            container.classList.add('active');
+            document.getElementById('aiLabel').style.display = 'block';
+            aiAnimationId = visualizeBars(aiAnalyser, container);
+        }
+
+        async function startCall() {
+            const statusEl = document.getElementById('status');
+            const callBtn = document.getElementById('callBtn');
+
+            statusEl.className = 'status info';
+            statusEl.textContent = '🔄 Connecting...';
+            callBtn.disabled = true;
+
+            try {
+                const response = await fetch('/token');
+                const data = await response.json();
+
+                const room = new LivekitClient.Room();
+                await room.connect(data.url, data.token);
+
+                // Get mic stream and start visualizer
+                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                startUserVisualizer(micStream);
+                await room.localParticipant.setMicrophoneEnabled(true);
+
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    if (track.kind === 'audio') {
+                        const audioElement = track.attach();
+                        audioElement.autoplay = true;
+                        audioElement.volume = 1.0;
+                        document.body.appendChild(audioElement);
+
+                        // Start AI visualizer
+                        audioElement.onplay = () => startAIVisualizer(audioElement);
+                        audioElement.play().catch(e => console.log("Autoplay blocked"));
+                    }
+                });
+
+                room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+                    statusEl.className = 'status success';
+                    statusEl.textContent = `🎙️ Connected to ${participant.identity}!`;
+                });
+
+                room.remoteParticipants.forEach((participant) => {
+                    participant.trackPublications.forEach((publication) => {
+                        if (publication.track && publication.track.kind === 'audio') {
+                            const audioElement = publication.track.attach();
+                            audioElement.autoplay = true;
+                            audioElement.volume = 1.0;
+                            document.body.appendChild(audioElement);
+                            audioElement.onplay = () => startAIVisualizer(audioElement);
+                            audioElement.play().catch(e => console.log("Play error:", e));
+                        }
+                    });
+                    statusEl.className = 'status success';
+                    statusEl.textContent = `🎙️ Connected to ${participant.identity}!`;
+                });
+
+                statusEl.className = 'status success';
+                statusEl.textContent = '🎙️ Connected! Speak to ask questions';
+
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ Connection failed: ${error.message}`;
+                callBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>
