@@ -8,7 +8,8 @@ let state = {
     isListening: false,
     ws: null,
     audioContext: null,
-    analyser: null,
+    inputAnalyser: null,  // For Mic
+    outputAnalyser: null, // For AI
     processor: null,
     stream: null,
     memory: JSON.parse(localStorage.getItem('user_memory') || '{}'),
@@ -222,8 +223,18 @@ function drawHUD() {
     const bars = 120;
 
     let visualData = new Uint8Array(bars);
-    if (state.analyser) {
-        state.analyser.getByteFrequencyData(visualData);
+    let isAISpeaking = false;
+
+    // Prioritize Output (AI)
+    if (state.outputAnalyser) {
+        state.outputAnalyser.getByteFrequencyData(visualData);
+        // Check if there's actual audio energy
+        if (visualData.some(v => v > 0)) isAISpeaking = true;
+    }
+
+    // Fallback to Input (Mic) if AI is silent and we are listening
+    if (!isAISpeaking && state.isListening && state.inputAnalyser) {
+        state.inputAnalyser.getByteFrequencyData(visualData);
     }
 
     let energy = 0;
@@ -240,7 +251,16 @@ function drawHUD() {
         const innerR = baseRadius + (Math.sin(angle * 6 + Date.now() * 0.003) * 3);
         const outerR = innerR + val;
 
-        const hue = 180 + (val * 0.3);
+        // Color Logic
+        let hue;
+        if (isAISpeaking) {
+            // AI = Blue (requested)
+            hue = 190 + (val * 0.5); // Cyan to Blue range
+        } else {
+            // User = Purple/Pink (original/secondary)
+            hue = 280 + (val * 0.5);
+        }
+
         ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${0.4 + (val / 150)})`;
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
@@ -251,7 +271,7 @@ function drawHUD() {
 
         if (val > 80) {
             ctx.beginPath();
-            ctx.strokeStyle = '#ff00ff';
+            ctx.strokeStyle = isAISpeaking ? '#00d4ff' : '#ff00ff'; // Cyan vs Magenta highlights
             ctx.lineWidth = 1;
             const x2 = Math.cos(angle) * outerR;
             const y2 = Math.sin(angle) * outerR;
@@ -265,17 +285,9 @@ function drawHUD() {
     const pulse = 1 + (energy * 0.01);
     ctx.beginPath();
     ctx.arc(centerX, centerY, 50 * pulse, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(0, 212, 255, ${0.1 + (energy / 100)})`;
+    ctx.strokeStyle = `rgba(${isAISpeaking ? '0, 212, 255' : '255, 0, 255'}, ${0.1 + (energy / 100)})`;
     ctx.lineWidth = 1;
     ctx.stroke();
-
-    if (state.isListening) {
-        irisText.style.textShadow = `0 0 ${15 + energy}px var(--primary), 0 0 ${5 + energy / 2}px var(--secondary)`;
-        irisText.style.color = '#fff';
-    } else {
-        irisText.style.textShadow = `0 0 10px var(--primary)`;
-        irisText.style.color = 'var(--primary)';
-    }
 }
 // drawHUD called in DOMContentLoaded
 
@@ -295,6 +307,12 @@ async function initAudio() {
     });
 
     const source = state.audioContext.createMediaStreamSource(state.stream);
+
+    // Input Visualizer
+    state.inputAnalyser = state.audioContext.createAnalyser();
+    state.inputAnalyser.fftSize = 256;
+    state.inputAnalyser.smoothingTimeConstant = 0.8;
+    source.connect(state.inputAnalyser);
 
     // Aggressive buffer size: 1024 (approx 64ms latency)
     state.processor = state.audioContext.createScriptProcessor(1024, 1, 1);
@@ -492,14 +510,14 @@ function playChunk(b64) {
         const src = outAudioCtx.createBufferSource();
         src.buffer = buf;
 
-        if (!state.analyser) {
-            state.analyser = outAudioCtx.createAnalyser();
-            state.analyser.fftSize = 256;
-            state.analyser.smoothingTimeConstant = 0.8;
+        if (!state.outputAnalyser) {
+            state.outputAnalyser = outAudioCtx.createAnalyser();
+            state.outputAnalyser.fftSize = 256;
+            state.outputAnalyser.smoothingTimeConstant = 0.8;
         }
 
-        src.connect(state.analyser);
-        state.analyser.connect(outAudioCtx.destination);
+        src.connect(state.outputAnalyser);
+        state.outputAnalyser.connect(outAudioCtx.destination);
 
         const now = outAudioCtx.currentTime;
         // Immediate playback if buffer is empty

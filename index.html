@@ -150,11 +150,26 @@
             transition: all 0.3s ease;
             pointer-events: auto;
             /* Allow interaction */
+            animation: pulse-glow 3s infinite alternate;
+        }
+
+        @keyframes pulse-glow {
+            from {
+                filter: drop-shadow(0 0 5px var(--primary));
+                opacity: 0.8;
+            }
+
+            to {
+                filter: drop-shadow(0 0 20px var(--secondary));
+                opacity: 1;
+            }
         }
 
         .hud-container:hover #irisLogo {
-            filter: drop-shadow(0 0 20px var(--secondary));
+            filter: drop-shadow(0 0 30px var(--secondary));
             transform: scale(1.05);
+            animation: none;
+            /* Pause pulse on hover for feedback */
         }
 
         /* Futuristic Accents */
