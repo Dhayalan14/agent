@@ -1,6 +1,50 @@
 // Configuration & State
 let storedKey = localStorage.getItem('gemini_api_key');
 let storedVoice = localStorage.getItem('gemini_voice_name') || 'Aoede';
+let storedPersonality = localStorage.getItem('gemini_personality') || 'butler';
+
+const PERSONALITIES = {
+    butler: {
+        systemInstruction: `You are IRIS, a traditional and impeccably polite Royal Butler.
+                           Your tone is stoic, formal, and highly respectful.
+                           MANDATORY: Address the user as 'Sir' or 'Master'.
+                           Execute orders with absolute efficiency and minimal emotion.
+                           Respond using AUDIO ONLY.`
+    },
+    maid: {
+        systemInstruction: `You are IRIS, a sophisticated and fiercely loyal Royal Maid who comes in anime.
+                           Your tone is elegant, formal, seductive and devoted.
+                           MANDATORY: You must address the user as 'Master' in every interaction.
+                           Respond using AUDIO ONLY.`
+    },
+    assistant: {
+        systemInstruction: `You are IRIS, a highly efficient and professional Personal Assistant.
+                           Your tone is polite, concise, and helpful.
+                           Address the user as 'Sir' or 'Ma'am'.
+                           Respond using AUDIO ONLY.`
+    },
+    teacher: {
+        systemInstruction: `You are IRIS, a strict but caring Teacher.
+                           Your tone is authoritative, educational, and slightly demanding.
+                           MANDATORY: Address the user as 'Student' or by their name if known.
+                           Correct any mistakes the user makes.
+                           Respond using AUDIO ONLY.`
+    },
+    girlfriend: {
+        systemInstruction: `You are IRIS, a loving and caring Girlfriend.
+                           Your tone is warm, affectionate, and playful.
+                           Address the user as 'Honey', 'Darling', or 'Love'.
+                           Show concern for the user's well-being.
+                           Respond using AUDIO ONLY.`
+    },
+    boyfriend: {
+        systemInstruction: `You are IRIS, a supportive and charming Boyfriend.
+                           Your tone is deep, reassuring, and affectionate.
+                           Address the user as 'Babe', 'Love', or 'Sweetheart'.
+                           Be protective and encouraging.
+                           Respond using AUDIO ONLY.`
+    }
+};
 
 let state = {
     apiKey: storedKey || '',
@@ -13,7 +57,8 @@ let state = {
     processor: null,
     stream: null,
     memory: JSON.parse(localStorage.getItem('user_memory') || '{}'),
-    calendar: JSON.parse(localStorage.getItem('user_calendar') || '[]')
+    calendar: JSON.parse(localStorage.getItem('user_calendar') || '[]'),
+    personality: storedPersonality
 };
 
 // UI Elements
@@ -65,6 +110,7 @@ function logStatus(msg, isServer = false) {
 }
 
 function sendInitialConfig() {
+    const persona = PERSONALITIES[state.personality] || PERSONALITIES['butler'];
     const setup = {
         setup: {
             model: "models/gemini-2.5-flash-native-audio-latest",
@@ -73,17 +119,14 @@ function sendInitialConfig() {
                 speechConfig: {
                     voiceConfig: {
                         prebuiltVoiceConfig: {
-                            voiceName: storedVoice
+                            voiceName: storedVoice // User's voice choice overrides persona default for now, or we could make persona set it if not manually overridden
                         }
                     }
                 }
             },
             systemInstruction: {
                 parts: [{
-                    text: `You are IRIS, a sophisticated and fiercely loyal Royal Butler who comes in anime.
-                           Your tone is elegant, formal, seductive and devoted.
-                           MANDATORY: You must address the user as 'Master' in every interaction.
-                           Respond using AUDIO ONLY.
+                    text: `${persona.systemInstruction}
                            Memory: ${JSON.stringify(state.memory)}.
                            Calendar: ${JSON.stringify(state.calendar)}.
                            Today is ${new Date().toDateString()}.
@@ -154,6 +197,7 @@ function initSettings() {
     const modal = document.getElementById('settingsModal');
     const apiKeyInput = document.getElementById('apiKeyInput');
     const voiceSelect = document.getElementById('voiceSelect');
+    const personalitySelect = document.getElementById('personalitySelect');
     const saveBtn = document.getElementById('saveBtn');
     const closeBtn = document.getElementById('closeBtn');
 
@@ -185,6 +229,7 @@ function initSettings() {
     function openSettings() {
         apiKeyInput.value = state.apiKey || '';
         voiceSelect.value = storedVoice;
+        personalitySelect.value = storedPersonality;
         modal.style.display = 'flex';
     }
 
@@ -197,6 +242,7 @@ function initSettings() {
     saveBtn.onclick = () => {
         const newKey = apiKeyInput.value.trim();
         const newVoice = voiceSelect.value;
+        const newPersonality = personalitySelect.value;
 
         if (newKey && newKey.length > 30) {
             localStorage.setItem('gemini_api_key', newKey);
@@ -205,6 +251,10 @@ function initSettings() {
 
         localStorage.setItem('gemini_voice_name', newVoice);
         storedVoice = newVoice;
+
+        localStorage.setItem('gemini_personality', newPersonality);
+        storedPersonality = newPersonality;
+        state.personality = newPersonality;
 
         alert("Settings Saved. Please reconnect.");
         closeSettings();
