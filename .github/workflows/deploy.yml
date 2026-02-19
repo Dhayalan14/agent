@@ -18,11 +18,11 @@ jobs:
 
       - name: Inject API Key
         run: |
-          sed -i 's/__GEMINI_API_KEY__/${{ secrets.GEMINI_API_KEY }}/g' standalone_mobile_agent/app.js
+          sed -i 's/__GEMINI_API_KEY__/${{ secrets.GEMINI_API_KEY }}/g' app.js
         shell: bash
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./standalone_mobile_agent
+          publish_dir: ./
