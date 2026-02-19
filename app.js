@@ -340,7 +340,15 @@ function connectToGemini() {
     };
 
     state.ws.onclose = (event) => {
-        logStatus(`Connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+        let isError = (event.code !== 1000 && event.code !== 1005);
+        let msg = `Connection closed. Code: ${event.code}, Reason: ${event.reason || 'None'}`;
+        if (isError) {
+            logStatus(msg); // Will trigger UI display if it contains "Error" - need to ensure it does or modify logStatus
+            irisText.innerText = msg; // Force display for abnormal close
+            irisText.style.color = 'red';
+        } else {
+            console.log(msg); // Only console for normal close
+        }
         stopSession();
     };
     state.ws.onerror = (error) => {
