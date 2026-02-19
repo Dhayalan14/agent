@@ -16,10 +16,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject API Key
-        env:
-          GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python inject_secret.py
+
         shell: bash
 
       - name: Deploy to GitHub Pages
