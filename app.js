@@ -24,7 +24,13 @@ canvas.width = 320;
 canvas.height = 320;
 
 function logStatus(msg, isServer = false) {
-    if (!state.isConnected && !state.isListening) console.log(isServer ? "SERVER:" : "STATUS:", msg);
+    const fullMsg = isServer ? "SERVER: " + msg : "STATUS: " + msg;
+    if (!state.isConnected && !state.isListening) console.log(fullMsg);
+    // Display on screen for debugging
+    if (msg.includes("Error") || msg.includes("closed") || msg.includes("failure")) {
+        irisText.innerText = msg;
+        irisText.style.color = 'red';
+    }
 }
 
 // Visualizer Logic
