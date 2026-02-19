@@ -177,8 +177,16 @@ function connectToGemini() {
         }
     };
 
-    state.ws.onclose = () => stopSession();
-    state.ws.onerror = () => logStatus("Connection failure.");
+    state.ws.onclose = (event) => {
+        logStatus(`Connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+        stopSession();
+    };
+    state.ws.onerror = (error) => {
+        logStatus(`Connection error: ${error.message || 'Unknown error'}`);
+        // Check API key validity without logging it
+        const keyStatus = state.apiKey === 'AIzaSyD5S9TFQuLx2zUNB2h9CnuhpPsDft9SKX0' ? 'Placeholder' : (state.apiKey.startsWith('AIza') ? 'Valid-Prefix' : 'Invalid-Prefix');
+        logStatus(`API Key Status: ${keyStatus}`);
+    };
 }
 
 function sendToGemini(payload) {
