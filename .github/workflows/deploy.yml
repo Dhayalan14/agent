@@ -18,7 +18,7 @@ jobs:
 
       - name: Inject API Key
         run: |
-          sed -i 's/__GEMINI_API_KEY__/${{ secrets.GEMINI_API_KEY }}/g' app.js
+          sed -i 's|__GEMINI_API_KEY__|${{ secrets.GEMINI_API_KEY }}|g' app.js
         shell: bash
 
       - name: Deploy to GitHub Pages
