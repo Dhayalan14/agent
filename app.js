@@ -413,3 +413,4 @@ function stopSession() {
     if (state.ws) state.ws.close();
     if (state.stream) state.stream.getTracks().forEach(t => t.stop());
 }
+
