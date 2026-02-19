@@ -272,8 +272,9 @@ function sendInitialConfig() {
 
 // Audio Playback
 const outAudioCtx = new (window.AudioContext || window.webkitAudioContext)({
-    sampleRate: 24000
-    // Removed latencyHint: 'interactive' for output to ensure smooth, high-quality playback
+    // Removed sampleRate: 24000 to allow native hardware rate (e.g. 48000)
+    // and let the browser handles high-quality resampling.
+    latencyHint: 'interactive'
 });
 let nextPlayTime = 0;
 
