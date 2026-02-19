@@ -435,6 +435,11 @@ async function handleGeminiResponse(resp) {
     // Initial handshake
     if (resp.setupComplete || resp.setup_complete) {
         state.isConnected = true;
+
+        // Visual Feedback: Connected
+        irisText.classList.remove('logo-connecting');
+        irisText.classList.add('logo-active');
+
         sendToGemini({
             clientContent: {
                 turns: [{
@@ -551,6 +556,10 @@ async function startSession() {
         connectToGemini();
         state.isListening = true;
         irisCore.classList.add('listening');
+
+        // Visual Feedback: Connecting
+        irisText.classList.remove('logo-active');
+        irisText.classList.add('logo-connecting');
     } catch (e) {
         console.error("Mic Error", e);
     }
@@ -560,6 +569,13 @@ function stopSession() {
     state.isListening = false;
     state.isConnected = false;
     irisCore.classList.remove('listening');
+
+    // Visual Feedback: Idle
+    if (irisText) {
+        irisText.classList.remove('logo-connecting');
+        irisText.classList.remove('logo-active');
+    }
+
     if (state.ws) state.ws.close();
     if (state.stream) state.stream.getTracks().forEach(t => t.stop());
 }
