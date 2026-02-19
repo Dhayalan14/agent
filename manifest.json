@@ -1,6 +1,6 @@
 {
-    "name": "Standalone Voice AI",
-    "short_name": "Voice AI",
+    "name": "IRIS",
+    "short_name": "IRIS",
     "start_url": "index.html",
     "display": "standalone",
     "background_color": "#0f172a",
