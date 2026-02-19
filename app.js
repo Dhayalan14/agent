@@ -15,7 +15,25 @@ let state = {
     calendar: JSON.parse(localStorage.getItem('user_calendar') || '[]')
 };
 
-// ... (UI Elements, logStatus, Visualizer Logic, initAudio, floatTo16BitPCM, arrayBufferToBase64, connectToGemini, sendToGemini unchanged)
+// UI Elements
+const irisCore = document.getElementById('irisCore');
+const irisText = document.getElementById('irisText');
+const canvas = document.getElementById('visualizerCanvas');
+const ctx = canvas.getContext('2d');
+
+// Setup Canvas size
+canvas.width = 320;
+canvas.height = 320;
+
+function logStatus(msg, isServer = false) {
+    const fullMsg = isServer ? "SERVER: " + msg : "STATUS: " + msg;
+    if (!state.isConnected && !state.isListening) console.log(fullMsg);
+    // Display on screen for debugging
+    if (msg.includes("Error") || msg.includes("closed") || msg.includes("failure")) {
+        irisText.innerText = msg;
+        irisText.style.color = 'red';
+    }
+}
 
 function sendInitialConfig() {
     const setup = {
