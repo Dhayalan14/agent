@@ -1,7 +1,7 @@
 
 // Configuration & State
 let state = {
-    apiKey: 'AIzaSyBBN0lZkWRYVQb2PlWfSQYt8eOajHTfFxw',
+    apiKey: 'GEMINI_API_KEY',
     isConnected: false,
     isListening: false,
     ws: null,
@@ -428,6 +428,7 @@ function stopSession() {
     if (state.ws) state.ws.close();
     if (state.stream) state.stream.getTracks().forEach(t => t.stop());
 }
+
 
 
 
