@@ -16,22 +16,46 @@ let state = {
 };
 
 // UI Elements
-const irisCore = document.getElementById('irisCore');
-const irisText = document.getElementById('irisLogo'); // Mapped to Logo Image now
-const canvas = document.getElementById('visualizerCanvas');
-const ctx = canvas.getContext('2d');
+let irisCore, irisText, canvas, ctx;
 
-// Setup Canvas size
-canvas.width = 320;
-canvas.height = 320;
+document.addEventListener('DOMContentLoaded', () => {
+    irisCore = document.getElementById('irisCore');
+    irisText = document.getElementById('irisLogo'); // Mapped to Logo Image now
+    canvas = document.getElementById('visualizerCanvas');
 
+    if (!canvas) {
+        console.error("Canvas element not found!");
+        return;
+    }
+
+    ctx = canvas.getContext('2d');
+
+    // Setup Canvas size
+    canvas.width = 320;
+    canvas.height = 320;
+
+    initSettings();
+    drawHUD();
+
+    // UI Interaction for Start/Stop
+    irisCore.onclick = async () => {
+        if (outAudioCtx.state === 'suspended') await outAudioCtx.resume();
+        if (state.isListening) stopSession();
+        else await startSession();
+    };
+});
+
+// ... (logStatus needs standard console fallback if UI not ready)
 function logStatus(msg, isServer = false) {
     const fullMsg = isServer ? "SERVER: " + msg : "STATUS: " + msg;
     if (!state.isConnected && !state.isListening) console.log(fullMsg);
-    // Display on screen for debugging
-    if (msg.includes("Error") || msg.includes("failure")) {
-        irisText.innerText = msg;
-        irisText.style.color = 'red';
+    // Display on screen for debugging - ONLY if UI is ready
+    if (irisText && (msg.includes("Error") || msg.includes("failure"))) {
+        // Since irisText is an IMG now, we can't set innerText. 
+        // We might need a separate status div or just console.error.
+        // For now, let's use console and maybe alert for critical errors if needed, 
+        // or just ignore text updates on the image.
+        console.error(msg);
     }
 }
 
@@ -185,7 +209,7 @@ function initSettings() {
     closeBtn.onclick = closeSettings;
 }
 
-initSettings();
+// initSettings called in DOMContentLoaded
 
 // Visualizer Logic
 function drawHUD() {
@@ -253,7 +277,7 @@ function drawHUD() {
         irisText.style.color = 'var(--primary)';
     }
 }
-drawHUD();
+// drawHUD called in DOMContentLoaded
 
 // Audio Captured from Mic (16kHz PCM)
 async function initAudio() {
@@ -487,11 +511,7 @@ function playChunk(b64) {
     }
 }
 
-irisCore.onclick = async () => {
-    if (outAudioCtx.state === 'suspended') await outAudioCtx.resume();
-    if (state.isListening) stopSession();
-    else await startSession();
-};
+// onclick handled in DOMContentLoaded
 
 async function startSession() {
     try {
