@@ -165,6 +165,7 @@ function arrayBufferToBase64(buffer) {
 function connectToGemini() {
     const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${state.apiKey}`;
     logStatus("Establishing uplink...");
+    logStatus("App Version: Fixed-Injection (Python)");
     logStatus(`Key Debug - Prefix: ${state.apiKey.substring(0, 4)}..., Length: ${state.apiKey.length}`);
     state.ws = new WebSocket(url);
 

@@ -19,8 +19,7 @@ jobs:
       - name: Inject API Key
         env:
           GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          sed -i "s|__GEMINI_API_KEY__|$GEMINI_KEY|g" app.js
+        run: python inject_secret.py
         shell: bash
 
       - name: Deploy to GitHub Pages
