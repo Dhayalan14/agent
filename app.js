@@ -1,7 +1,23 @@
 
 // Configuration & State
+let storedKey = localStorage.getItem('gemini_api_key');
+if (!storedKey || storedKey === '__GEMINI_API_KEY__' || storedKey.length < 10) {
+    // Check if the hardcoded one is valid (in case injection worked)
+    const hardcoded = '__GEMINI_API_KEY__';
+    if (hardcoded !== '__GEMINI_API_KEY__' && hardcoded.length > 30) {
+        storedKey = hardcoded;
+    } else {
+        // Fallback: Prompt the user
+        const userInput = prompt("Please enter your Gemini API Key:", "");
+        if (userInput && userInput.length > 30) {
+            localStorage.setItem('gemini_api_key', userInput);
+            storedKey = userInput;
+        }
+    }
+}
+
 let state = {
-    apiKey: 'GEMINI_API_KEY',
+    apiKey: storedKey || '__GEMINI_API_KEY__',
     isConnected: false,
     isListening: false,
     ws: null,
