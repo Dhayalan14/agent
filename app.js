@@ -3,7 +3,7 @@ let storedKey = localStorage.getItem('gemini_api_key');
 let storedVoice = localStorage.getItem('gemini_voice_name') || 'Aoede';
 
 let state = {
-    apiKey: storedKey || 'AIzaSyBBN0lZkWRYVQb2PlWfSQYt8eOajHTfFxw',
+    apiKey: storedKey || '',
     isConnected: false,
     isListening: false,
     ws: null,
@@ -154,7 +154,7 @@ function initSettings() {
     irisText.addEventListener('touchend', cancelPress);
 
     function openSettings() {
-        apiKeyInput.value = state.apiKey === 'AIzaSyBBN0lZkWRYVQb2PlWfSQYt8eOajHTfFxw' ? '' : state.apiKey;
+        apiKeyInput.value = state.apiKey || '';
         voiceSelect.value = storedVoice;
         modal.style.display = 'flex';
     }
@@ -317,9 +317,13 @@ function arrayBufferToBase64(buffer) {
 }
 
 function connectToGemini() {
+    if (!state.apiKey) {
+        logStatus("Error: API Key missing. Long-press IRIS to set.");
+        return;
+    }
     const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${state.apiKey}`;
     logStatus("Establishing uplink...");
-    logStatus("App Version: Fixed-Injection (Python)");
+    logStatus("App Version: Manual-Key-Only");
     logStatus(`Key Debug - Prefix: ${state.apiKey.substring(0, 4)}..., Length: ${state.apiKey.length}`);
     state.ws = new WebSocket(url);
 
@@ -354,7 +358,7 @@ function connectToGemini() {
     state.ws.onerror = (error) => {
         logStatus(`Connection error: ${error.message || 'Unknown error'}`);
         // Check API key validity without logging it
-        const keyStatus = state.apiKey === 'AIzaSyBBN0lZkWRYVQb2PlWfSQYt8eOajHTfFxw' ? 'Placeholder' : (state.apiKey.startsWith('AIza') ? 'Valid-Prefix' : 'Invalid-Prefix');
+        const keyStatus = state.apiKey.startsWith('AIza') ? 'Valid-Prefix' : 'Invalid-Prefix';
         logStatus(`API Key Status: ${keyStatus}`);
     };
 }
