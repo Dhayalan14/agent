@@ -17,7 +17,7 @@ let state = {
 
 // UI Elements
 const irisCore = document.getElementById('irisCore');
-const irisText = document.getElementById('irisText');
+const irisText = document.getElementById('irisLogo'); // Mapped to Logo Image now
 const canvas = document.getElementById('visualizerCanvas');
 const ctx = canvas.getContext('2d');
 
