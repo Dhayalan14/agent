@@ -169,6 +169,176 @@ function initSettings() {
 
 initSettings();
 
+// Visualizer Logic
+function drawHUD() {
+    requestAnimationFrame(drawHUD);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const baseRadius = 80;
+    const bars = 120;
+
+    let visualData = new Uint8Array(bars);
+    if (state.analyser) {
+        state.analyser.getByteFrequencyData(visualData);
+    }
+
+    let energy = 0;
+    for (let i = 0; i < visualData.length; i++) energy += visualData[i];
+    energy = (energy / visualData.length) / 2;
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(Date.now() * 0.0005);
+
+    for (let i = 0; i < bars; i++) {
+        const val = visualData[i] * 0.06;
+        const angle = (i / bars) * Math.PI * 2;
+        const innerR = baseRadius + (Math.sin(angle * 6 + Date.now() * 0.003) * 3);
+        const outerR = innerR + val;
+
+        const hue = 180 + (val * 0.3);
+        ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${0.4 + (val / 150)})`;
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * innerR, Math.sin(angle) * innerR);
+        ctx.lineTo(Math.cos(angle) * outerR, Math.sin(angle) * outerR);
+        ctx.stroke();
+
+        if (val > 80) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#ff00ff';
+            ctx.lineWidth = 1;
+            const x2 = Math.cos(angle) * outerR;
+            const y2 = Math.sin(angle) * outerR;
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 + Math.cos(angle) * 8, y2 + Math.sin(angle) * 8);
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+
+    const pulse = 1 + (energy * 0.01);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 50 * pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0, 212, 255, ${0.1 + (energy / 100)})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    if (state.isListening) {
+        irisText.style.textShadow = `0 0 ${15 + energy}px var(--primary), 0 0 ${5 + energy / 2}px var(--secondary)`;
+        irisText.style.color = '#fff';
+    } else {
+        irisText.style.textShadow = `0 0 10px var(--primary)`;
+        irisText.style.color = 'var(--primary)';
+    }
+}
+drawHUD();
+
+// Audio Captured from Mic (16kHz PCM)
+async function initAudio() {
+    state.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: 16000,
+        latencyHint: 'interactive'
+    });
+    state.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            latency: 0
+        }
+    });
+
+    const source = state.audioContext.createMediaStreamSource(state.stream);
+
+    // Aggressive buffer size: 1024 (approx 64ms latency)
+    state.processor = state.audioContext.createScriptProcessor(1024, 1, 1);
+
+    source.connect(state.processor);
+    state.processor.connect(state.audioContext.destination);
+
+    state.processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        if (!state.isConnected) return;
+
+        const pcm16 = floatTo16BitPCM(inputData);
+        // Optimized Base64 conversion
+        const base64Audio = arrayBufferToBase64(pcm16.buffer);
+
+        sendToGemini({
+            realtimeInput: {
+                mediaChunks: [{
+                    data: base64Audio,
+                    mimeType: 'audio/pcm;rate=16000'
+                }]
+            }
+        });
+    };
+}
+
+function floatTo16BitPCM(input) {
+    const output = new Int16Array(input.length);
+    for (let i = 0; i < input.length; i++) {
+        const s = Math.max(-1, Math.min(1, input[i]));
+        output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return output;
+}
+
+function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+function connectToGemini() {
+    const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${state.apiKey}`;
+    logStatus("Establishing uplink...");
+    logStatus("App Version: Fixed-Injection (Python)");
+    logStatus(`Key Debug - Prefix: ${state.apiKey.substring(0, 4)}..., Length: ${state.apiKey.length}`);
+    state.ws = new WebSocket(url);
+
+    state.ws.onopen = () => {
+        logStatus("Uplink active.");
+        sendInitialConfig();
+    };
+
+    state.ws.onmessage = async (event) => {
+        try {
+            let textData = event.data;
+            if (textData instanceof Blob) textData = await textData.text();
+            const response = JSON.parse(textData);
+            handleGeminiResponse(response);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    state.ws.onclose = (event) => {
+        logStatus(`Connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+        stopSession();
+    };
+    state.ws.onerror = (error) => {
+        logStatus(`Connection error: ${error.message || 'Unknown error'}`);
+        // Check API key validity without logging it
+        const keyStatus = state.apiKey === '__GEMINI_API_KEY__' ? 'Placeholder' : (state.apiKey.startsWith('AIza') ? 'Valid-Prefix' : 'Invalid-Prefix');
+        logStatus(`API Key Status: ${keyStatus}`);
+    };
+}
+
+function sendToGemini(payload) {
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify(payload));
+    }
+}
+
 // Audio Playback
 const outAudioCtx = new (window.AudioContext || window.webkitAudioContext)({
     sampleRate: 24000,
