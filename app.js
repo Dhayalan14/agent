@@ -165,6 +165,7 @@ function arrayBufferToBase64(buffer) {
 function connectToGemini() {
     const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${state.apiKey}`;
     logStatus("Establishing uplink...");
+    logStatus("App Version: Fixed-Injection (Python)");
     logStatus(`Key Debug - Prefix: ${state.apiKey.substring(0, 4)}..., Length: ${state.apiKey.length}`);
     state.ws = new WebSocket(url);
 
@@ -191,7 +192,7 @@ function connectToGemini() {
     state.ws.onerror = (error) => {
         logStatus(`Connection error: ${error.message || 'Unknown error'}`);
         // Check API key validity without logging it
-        const keyStatus = state.apiKey === 'AIzaSyD5S9TFQuLx2zUNB2h9CnuhpPsDft9SKX0' ? 'Placeholder' : (state.apiKey.startsWith('AIza') ? 'Valid-Prefix' : 'Invalid-Prefix');
+        const keyStatus = state.apiKey === 'AIzaSyBBN0lZkWRYVQb2PlWfSQYt8eOajHTfFxw' ? 'Placeholder' : (state.apiKey.startsWith('AIza') ? 'Valid-Prefix' : 'Invalid-Prefix');
         logStatus(`API Key Status: ${keyStatus}`);
     };
 }
