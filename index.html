@@ -140,48 +140,91 @@
             opacity: 0.8;
             box-shadow: 0 0 25px var(--primary);
         }
-    </style>
-</head>
 
-<body>
-    <div class="hud-container" id="irisCore">
-        <div class="hud-ring ring-1"></div>
-        <div class="hud-ring ring-2"></div>
-        <div class="hud-ring ring-3"></div>
-        <div id="irisText">IRIS</div>
-        <canvas id="visualizerCanvas"></canvas>
-    </div>
+        /* Futuristic Accents */
+        .scan-line {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent, rgba(0, 212, 255, 0.1), transparent);
+            z-index: 10;
+            pointer-events: none;
+            animation: scan 4s linear infinite;
+        }
 
-    <div id="settingsModal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <h2>IRIS SYSTEM SETTINGS</h2>
+        @keyframes scan {
+            0% {
+                transform: translateY(-100%);
+            }
 
-            <div class="input-group">
-                <label>API KEY</label>
-                <input type="password" id="apiKeyInput" placeholder="Enter Gemini API Key">
-            </div>
+            100% {
+                transform: translateY(100%);
+            }
+        }
 
-            <div class="input-group">
-                <label>VOICE MODEL</label>
-                <select id="voiceSelect">
-                    <option value="Aoede">Aoede (Elegant)</option>
-                    <option value="Charon">Charon (Deep)</option>
-                    <option value="Fenrir">Fenrir (Intense)</option>
-                    <option value="Kore">Kore (Soft)</option>
-                    <option value="Puck">Puck (Playful)</option>
-                </select>
-            </div>
+        .corner-bracket {
+            position: fixed;
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--primary);
+            z-index: 5;
+            pointer-events: none;
+            opacity: 0.6;
+        }
 
-            <div class="modal-actions">
-                <button id="saveBtn">INITIALIZE</button>
-                <button id="closeBtn"
-                    style="background: transparent; border: 1px solid white; color: white;">CLOSE</button>
-            </div>
-        </div>
-    </div>
+        .top-left {
+            top: 20px;
+            left: 20px;
+            border-right: none;
+            border-bottom: none;
+        }
 
-    <style>
-        .modal-overlay {
+        .top-right {
+            top: 20px;
+            right: 20px;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .bottom-left {
+            bottom: 20px;
+            left: 20px;
+            border-right: none;
+            border-top: none;
+        }
+
+        .bottom-right {
+            bottom: 20px;
+            right: 20px;
+            border-left: none;
+            border-top: none;
+        }
+
+        .ring-4 {
+            width: 280px;
+            height: 280px;
+            border: 1px dotted var(--secondary);
+            border-radius: 50%;
+            opacity: 0.4;
+            animation: rotate-rev 30s linear infinite;
+        }
+
+        .ring-5 {
+            width: 140px;
+            height: 140px;
+            border-top: 2px solid var(--primary);
+            border-bottom: 2px solid var(--primary);
+            border-left: 2px solid transparent;
+            border-right: 2px solid transparent;
+            border-radius: 50%;
+            animation: rotate 3s linear infinite;
+        }
+
+        </head><body><div class="scan-line"></div><div class="corner-bracket top-left"></div><div class="corner-bracket top-right"></div><div class="corner-bracket bottom-left"></div><div class="corner-bracket bottom-right"></div><div class="hud-container" id="irisCore"><div class="hud-ring ring-1"></div><div class="hud-ring ring-2"></div><div class="hud-ring ring-3"></div><div class="hud-ring ring-4"></div><div class="hud-ring ring-5"></div><div id="irisText">IRIS</div><canvas id="visualizerCanvas"></canvas></div><div id="settingsModal" class="modal-overlay" style="display: none;"><div class="modal-content"><h2>IRIS SYSTEM SETTINGS</h2><div class="input-group"><label>API KEY</label><input type="password" id="apiKeyInput" placeholder="Enter Gemini API Key"></div><div class="input-group"><label>VOICE MODEL</label><select id="voiceSelect"><option value="Aoede">Aoede (Elegant)</option><option value="Charon">Charon (Deep)</option><option value="Fenrir">Fenrir (Intense)</option><option value="Kore">Kore (Soft)</option><option value="Puck">Puck (Playful)</option></select></div><div class="modal-actions"><button id="saveBtn">INITIALIZE</button><button id="closeBtn"
+
+        style="background: transparent; border: 1px solid white; color: white;">CLOSE</button></div></div></div><style>.modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
@@ -279,6 +322,6 @@
         }
     </style>
     <script src="app.js"></script>
-</body>
+    </body>
 
 </html>
