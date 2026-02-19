@@ -1,15 +1,14 @@
 
 // Configuration & State
 let state = {
-    apiKey: 'AIzaSyAvY3lEPlqdEgRl3BnZfm3Z5Ubcdd1a9Tk',
+    apiKey: 'AIzaSyDkBVbl5O5uBzS0Aa1-QZJNdBqOLhJdMVs',
     isConnected: false,
     isListening: false,
     ws: null,
     audioContext: null,
-    analyser: null, // This will be dedicated to AI output
+    analyser: null,
     processor: null,
     stream: null,
-    sendCount: 0,
     memory: JSON.parse(localStorage.getItem('user_memory') || '{}'),
     calendar: JSON.parse(localStorage.getItem('user_calendar') || '[]')
 };
@@ -25,10 +24,10 @@ canvas.width = 320;
 canvas.height = 320;
 
 function logStatus(msg, isServer = false) {
-    console.log(isServer ? "FROM SERVER:" : "[Status]:", msg);
+    if (!state.isConnected && !state.isListening) console.log(isServer ? "SERVER:" : "STATUS:", msg);
 }
 
-// Visualizer Logic (using AnalyserNode for smoothness)
+// Visualizer Logic
 function drawHUD() {
     requestAnimationFrame(drawHUD);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -38,50 +37,40 @@ function drawHUD() {
     const baseRadius = 80;
     const bars = 120;
 
-    // Use AnalyserNode if available, otherwise fallback
     let visualData = new Uint8Array(bars);
     if (state.analyser) {
         state.analyser.getByteFrequencyData(visualData);
     }
 
-    // Audio reactive intensity for the core pulse
     let energy = 0;
     for (let i = 0; i < visualData.length; i++) energy += visualData[i];
-    energy = (energy / visualData.length) / 2; // Normalize
+    energy = (energy / visualData.length) / 2;
 
     ctx.save();
     ctx.translate(centerX, centerY);
-
-    const rotation = Date.now() * 0.0005;
-    ctx.rotate(rotation);
+    ctx.rotate(Date.now() * 0.0005);
 
     for (let i = 0; i < bars; i++) {
-        // Frequency data is 0-255. Reduced to 20% (0.06) for a more subtle effect.
         const val = visualData[i] * 0.06;
         const angle = (i / bars) * Math.PI * 2;
-
         const innerR = baseRadius + (Math.sin(angle * 6 + Date.now() * 0.003) * 3);
         const outerR = innerR + val;
-
-        const x1 = Math.cos(angle) * innerR;
-        const y1 = Math.sin(angle) * innerR;
-        const x2 = Math.cos(angle) * outerR;
-        const y2 = Math.sin(angle) * outerR;
 
         const hue = 180 + (val * 0.3);
         ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${0.4 + (val / 150)})`;
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
-
         ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
+        ctx.moveTo(Math.cos(angle) * innerR, Math.sin(angle) * innerR);
+        ctx.lineTo(Math.cos(angle) * outerR, Math.sin(angle) * outerR);
         ctx.stroke();
 
-        if (val > 80) { // Highlight sparks
+        if (val > 80) {
             ctx.beginPath();
             ctx.strokeStyle = '#ff00ff';
             ctx.lineWidth = 1;
+            const x2 = Math.cos(angle) * outerR;
+            const y2 = Math.sin(angle) * outerR;
             ctx.moveTo(x2, y2);
             ctx.lineTo(x2 + Math.cos(angle) * 8, y2 + Math.sin(angle) * 8);
             ctx.stroke();
@@ -89,7 +78,6 @@ function drawHUD() {
     }
     ctx.restore();
 
-    // Pulse effect
     const pulse = 1 + (energy * 0.01);
     ctx.beginPath();
     ctx.arc(centerX, centerY, 50 * pulse, 0, Math.PI * 2);
@@ -97,7 +85,6 @@ function drawHUD() {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Center IRIS text glow
     if (state.isListening) {
         irisText.style.textShadow = `0 0 ${15 + energy}px var(--primary), 0 0 ${5 + energy / 2}px var(--secondary)`;
         irisText.style.color = '#fff';
@@ -110,12 +97,24 @@ drawHUD();
 
 // Audio Captured from Mic (16kHz PCM)
 async function initAudio() {
-    state.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: 16000,
+        latencyHint: 'interactive'
+    });
+    state.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            latency: 0
+        }
+    });
+
     const source = state.audioContext.createMediaStreamSource(state.stream);
 
-    // Processor for the binary stream to Gemini (No visualizer connection here)
-    state.processor = state.audioContext.createScriptProcessor(4096, 1, 1);
+    // Aggressive buffer size: 1024 (approx 64ms latency)
+    state.processor = state.audioContext.createScriptProcessor(1024, 1, 1);
+
     source.connect(state.processor);
     state.processor.connect(state.audioContext.destination);
 
@@ -124,7 +123,8 @@ async function initAudio() {
         if (!state.isConnected) return;
 
         const pcm16 = floatTo16BitPCM(inputData);
-        const base64Audio = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
+        // Optimized Base64 conversion
+        const base64Audio = arrayBufferToBase64(pcm16.buffer);
 
         sendToGemini({
             realtimeInput: {
@@ -138,12 +138,22 @@ async function initAudio() {
 }
 
 function floatTo16BitPCM(input) {
-    let output = new Int16Array(input.length);
+    const output = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
-        let s = Math.max(-1, Math.min(1, input[i]));
+        const s = Math.max(-1, Math.min(1, input[i]));
         output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
     return output;
+}
+
+function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
 }
 
 function connectToGemini() {
@@ -163,12 +173,12 @@ function connectToGemini() {
             const response = JSON.parse(textData);
             handleGeminiResponse(response);
         } catch (e) {
-            console.error("Msg Error:", e);
+            console.error(e);
         }
     };
 
-    state.ws.onclose = (e) => stopSession();
-    state.ws.onerror = (err) => logStatus("Connection failure.");
+    state.ws.onclose = () => stopSession();
+    state.ws.onerror = () => logStatus("Connection failure.");
 }
 
 function sendToGemini(payload) {
@@ -193,9 +203,9 @@ function sendInitialConfig() {
             },
             systemInstruction: {
                 parts: [{
-                    text: `You are IRIS, a sophisticated and fiercely loyal Royal Butler. 
-                           Your tone is elegant, formal, and devoted. 
-                           MANDATORY: You must address the user as 'Master' in every interaction. 
+                    text: `You are IRIS, a sophisticated and fiercely loyal Royal Butler who comes in anime.
+                           Your tone is elegant, formal, seductive and devoted.
+                           MANDATORY: You must address the user as 'Master' in every interaction.
                            Respond using AUDIO ONLY.
                            Memory: ${JSON.stringify(state.memory)}.
                            Calendar: ${JSON.stringify(state.calendar)}.
@@ -261,19 +271,21 @@ function sendInitialConfig() {
 }
 
 // Audio Playback
-const outAudioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+const outAudioCtx = new (window.AudioContext || window.webkitAudioContext)({
+    sampleRate: 24000
+    // Removed latencyHint: 'interactive' for output to ensure smooth, high-quality playback
+});
 let nextPlayTime = 0;
 
 async function handleGeminiResponse(resp) {
+    // Initial handshake
     if (resp.setupComplete || resp.setup_complete) {
         state.isConnected = true;
-
-        // Butler Greeting: Speak first
         sendToGemini({
             clientContent: {
                 turns: [{
                     role: "user",
-                    parts: [{ text: "Greet me as your Master in your butler persona." }]
+                    parts: [{ text: "Greeting." }]
                 }],
                 turnComplete: true
             }
@@ -281,12 +293,14 @@ async function handleGeminiResponse(resp) {
         return;
     }
 
+    // Tool Calls
     const toolCall = resp.toolCall || resp.tool_call;
     if (toolCall) {
         const calls = toolCall.functionCalls || toolCall.function_calls;
         if (calls) calls.forEach(execTool);
     }
 
+    // Audio Content
     const content = resp.serverContent || resp.server_content;
     const turn = content?.modelTurn || content?.model_turn;
     if (turn?.parts) {
@@ -302,33 +316,28 @@ async function handleGeminiResponse(resp) {
 
 function execTool(call) {
     let result = "";
+    const args = call.args;
+
     if (call.name === "save_user_detail") {
-        const { key, value } = call.args;
-        state.memory[key] = value;
+        state.memory[args.key] = args.value;
         localStorage.setItem('user_memory', JSON.stringify(state.memory));
-        result = `Success: Saved ${key}.`;
+        result = "Saved.";
     } else if (call.name === "get_user_detail") {
-        result = state.memory[call.args.key] || "Unknown";
+        result = state.memory[args.key] || "Unknown";
     } else if (call.name === "add_calendar_event") {
-        const ev = {
-            title: call.args.title,
-            date: call.args.date,
-            time: call.args.time || "All day",
-            desc: call.args.description || ""
-        };
-        state.calendar.push(ev);
+        state.calendar.push(args);
         localStorage.setItem('user_calendar', JSON.stringify(state.calendar));
-        result = `Success: Scheduled ${ev.title}.`;
+        result = "Scheduled.";
     } else if (call.name === "list_calendar_events") {
-        result = state.calendar.length > 0 ? JSON.stringify(state.calendar) : "Empty.";
+        result = JSON.stringify(state.calendar);
     } else if (call.name === "delete_calendar_event") {
-        const len = state.calendar.length;
-        state.calendar = state.calendar.filter(e => e.title.toLowerCase() !== call.args.title.toLowerCase());
-        if (state.calendar.length < len) {
+        const initialLen = state.calendar.length;
+        state.calendar = state.calendar.filter(e => e.title.toLowerCase() !== args.title.toLowerCase());
+        if (state.calendar.length < initialLen) {
             localStorage.setItem('user_calendar', JSON.stringify(state.calendar));
-            result = `Deleted.`;
+            result = "Deleted.";
         } else {
-            result = `Not found.`;
+            result = "Not found.";
         }
     }
 
@@ -346,18 +355,20 @@ function execTool(call) {
 function playChunk(b64) {
     try {
         const bin = atob(b64);
-        const u8 = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const len = bin.length;
+        const u8 = new Uint8Array(len);
+        for (let i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
+
         const p16 = new Int16Array(u8.buffer);
         const f32 = new Float32Array(p16.length);
         for (let i = 0; i < p16.length; i++) f32[i] = p16[i] / 32768;
 
         const buf = outAudioCtx.createBuffer(1, f32.length, 24000);
         buf.getChannelData(0).set(f32);
+
         const src = outAudioCtx.createBufferSource();
         src.buffer = buf;
 
-        // Persistent Analyser for AI output
         if (!state.analyser) {
             state.analyser = outAudioCtx.createAnalyser();
             state.analyser.fftSize = 256;
@@ -368,10 +379,13 @@ function playChunk(b64) {
         state.analyser.connect(outAudioCtx.destination);
 
         const now = outAudioCtx.currentTime;
+        // Immediate playback if buffer is empty
         if (nextPlayTime < now) nextPlayTime = now;
         src.start(nextPlayTime);
         nextPlayTime += buf.duration;
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 irisCore.onclick = async () => {
@@ -388,6 +402,7 @@ async function startSession() {
         state.isListening = true;
         irisCore.classList.add('listening');
     } catch (e) {
+        console.error("Mic Error", e);
     }
 }
 
@@ -398,3 +413,4 @@ function stopSession() {
     if (state.ws) state.ws.close();
     if (state.stream) state.stream.getTracks().forEach(t => t.stop());
 }
+
