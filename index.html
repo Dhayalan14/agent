@@ -146,30 +146,59 @@
             width: 120px;
             height: auto;
             z-index: 2;
-            filter: drop-shadow(0 0 10px var(--primary));
-            transition: all 0.3s ease;
+            filter: drop-shadow(0 0 5px var(--primary)) grayscale(0.8);
+            /* Dim by default */
+            opacity: 0.6;
+            transition: all 0.5s ease;
             pointer-events: auto;
             /* Allow interaction */
-            animation: pulse-glow 3s infinite alternate;
         }
 
-        @keyframes pulse-glow {
+        /* Connecting State - Yellow Pulse */
+        #irisLogo.logo-connecting {
+            filter: drop-shadow(0 0 15px #ffcc00) grayscale(0%);
+            opacity: 1;
+            animation: pulse-yellow 1.5s infinite alternate;
+        }
+
+        /* Active/Connected State - Blue/Cyan Pulse */
+        #irisLogo.logo-active {
+            filter: drop-shadow(0 0 20px var(--secondary)) grayscale(0%);
+            opacity: 1;
+            animation: pulse-blue 2s infinite alternate;
+        }
+
+        @keyframes pulse-yellow {
             from {
-                filter: drop-shadow(0 0 5px var(--primary));
+                filter: drop-shadow(0 0 5px #ffcc00);
                 opacity: 0.8;
+                transform: scale(0.98);
             }
 
             to {
-                filter: drop-shadow(0 0 20px var(--secondary));
+                filter: drop-shadow(0 0 20px #ffcc00);
+                opacity: 1;
+                transform: scale(1.02);
+            }
+        }
+
+        @keyframes pulse-blue {
+            from {
+                filter: drop-shadow(0 0 10px var(--primary));
+                opacity: 0.9;
+            }
+
+            to {
+                filter: drop-shadow(0 0 25px var(--secondary));
                 opacity: 1;
             }
         }
 
         .hud-container:hover #irisLogo {
-            filter: drop-shadow(0 0 30px var(--secondary));
+            filter: drop-shadow(0 0 30px var(--secondary)) grayscale(0%);
+            opacity: 1;
             transform: scale(1.05);
-            animation: none;
-            /* Pause pulse on hover for feedback */
+            /* animation: none; Remove pause on hover, keep state feedback */
         }
 
         /* Futuristic Accents */
