@@ -1,7 +1,7 @@
 
 // Configuration & State
 let state = {
-    apiKey: 'GOOGLE_API_KEY',
+    apiKey: '__GEMINI_API_KEY__',
     isConnected: false,
     isListening: false,
     ws: null,
@@ -287,8 +287,7 @@ function sendInitialConfig() {
 
 // Audio Playback
 const outAudioCtx = new (window.AudioContext || window.webkitAudioContext)({
-    // Removed sampleRate: 24000 to allow native hardware rate (e.g. 48000)
-    // and let the browser handles high-quality resampling.
+    sampleRate: 24000,
     latencyHint: 'interactive'
 });
 let nextPlayTime = 0;
