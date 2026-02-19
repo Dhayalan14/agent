@@ -17,11 +17,12 @@ let state = {
 };
 
 // UI Elements
-let irisCore, irisText, canvas, ctx;
+let irisCore, irisText, statusText, canvas, ctx;
 
 document.addEventListener('DOMContentLoaded', () => {
     irisCore = document.getElementById('irisCore');
     irisText = document.getElementById('irisLogo'); // Mapped to Logo Image now
+    statusText = document.getElementById('statusText'); // New Status Display
     canvas = document.getElementById('visualizerCanvas');
 
     if (!canvas) {
@@ -51,11 +52,14 @@ function logStatus(msg, isServer = false) {
     const fullMsg = isServer ? "SERVER: " + msg : "STATUS: " + msg;
     if (!state.isConnected && !state.isListening) console.log(fullMsg);
     // Display on screen for debugging - ONLY if UI is ready
-    if (irisText && (msg.includes("Error") || msg.includes("failure"))) {
-        // Since irisText is an IMG now, we can't set innerText. 
-        // We might need a separate status div or just console.error.
-        // For now, let's use console and maybe alert for critical errors if needed, 
-        // or just ignore text updates on the image.
+    if (statusText) {
+        statusText.innerText = msg;
+        if (msg.includes("Error") || msg.includes("failure")) {
+            statusText.style.color = '#ff0055'; // Red/Pink for error
+        } else {
+            statusText.style.color = 'var(--primary)';
+        }
+    } else if (irisText && (msg.includes("Error") || msg.includes("failure"))) {
         console.error(msg);
     }
 }
@@ -267,6 +271,15 @@ function drawHUD() {
         ctx.beginPath();
         ctx.moveTo(Math.cos(angle) * innerR, Math.sin(angle) * innerR);
         ctx.lineTo(Math.cos(angle) * outerR, Math.sin(angle) * outerR);
+
+        // Add Glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = ctx.strokeStyle;
+
+        // Add Glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = ctx.strokeStyle;
+
         ctx.stroke();
 
         if (val > 80) {
