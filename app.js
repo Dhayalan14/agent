@@ -386,7 +386,8 @@ async function initAudio() {
             this.bufferIndex = 0;
             this.isSpeaking = false;
             this.silenceFrames = 0;
-            this.threshold = 0.015;
+            // Increased threshold from 0.015 to 0.03 to ignore background noise better
+            this.threshold = 0.03;
         }
         process(inputs, outputs, parameters) {
             const input = inputs[0];
@@ -410,8 +411,8 @@ async function initAudio() {
                     if (this.isSpeaking) {
                         this.silenceFrames++;
                         // 128 samples per frame @ 16kHz = 8ms per frame.
-                        // 50 frames = 400ms.
-                        if (this.silenceFrames > 50) {
+                        // 30 frames = 240ms for much faster response.
+                        if (this.silenceFrames > 30) {
                             this.isSpeaking = false;
                             this.port.postMessage({ type: 'vad', isSpeaking: false });
                         }
@@ -446,9 +447,11 @@ async function initAudio() {
         
         if (e.data.type === 'vad') {
             if (e.data.isSpeaking) {
+                console.log("VAD: Started speaking (Interrupting AI)");
                 // User started speaking, instantly cut off AI playback
                 stopAudioPlayback();
             } else {
+                console.log("VAD: Stopped speaking. Forcing instant AI response.");
                 // User stopped speaking, signal turn complete
                 sendToGemini({
                     clientContent: {
