@@ -382,18 +382,47 @@ async function initAudio() {
     class PCMProcessor extends AudioWorkletProcessor {
         constructor() {
             super();
-            this.buffer = new Float32Array(1024);
+            this.buffer = new Float32Array(512);
             this.bufferIndex = 0;
+            this.isSpeaking = false;
+            this.silenceFrames = 0;
+            this.threshold = 0.015;
         }
         process(inputs, outputs, parameters) {
             const input = inputs[0];
             if (input.length > 0 && input[0]) {
                 const channelData = input[0];
+                
+                // VAD calculation
+                let sumSquares = 0;
+                for(let i=0; i<channelData.length; i++) {
+                     sumSquares += channelData[i] * channelData[i];
+                }
+                const rms = Math.sqrt(sumSquares / channelData.length);
+                
+                if (rms > this.threshold) {
+                    if (!this.isSpeaking) {
+                        this.isSpeaking = true;
+                        this.port.postMessage({ type: 'vad', isSpeaking: true });
+                    }
+                    this.silenceFrames = 0;
+                } else {
+                    if (this.isSpeaking) {
+                        this.silenceFrames++;
+                        // 128 samples per frame @ 16kHz = 8ms per frame.
+                        // 50 frames = 400ms.
+                        if (this.silenceFrames > 50) {
+                            this.isSpeaking = false;
+                            this.port.postMessage({ type: 'vad', isSpeaking: false });
+                        }
+                    }
+                }
+
                 for (let i = 0; i < channelData.length; i++) {
                     this.buffer[this.bufferIndex++] = channelData[i];
                     if (this.bufferIndex >= this.buffer.length) {
-                        this.port.postMessage(this.buffer);
-                        this.buffer = new Float32Array(1024);
+                        this.port.postMessage({ type: 'audio', data: this.buffer });
+                        this.buffer = new Float32Array(512);
                         this.bufferIndex = 0;
                     }
                 }
@@ -414,19 +443,37 @@ async function initAudio() {
 
     state.workletNode.port.onmessage = (e) => {
         if (!state.isConnected) return;
-        const inputData = e.data;
-        const pcm16 = floatTo16BitPCM(inputData);
-        // Optimized Base64 conversion
-        const base64Audio = arrayBufferToBase64(pcm16.buffer);
-
-        sendToGemini({
-            realtimeInput: {
-                mediaChunks: [{
-                    data: base64Audio,
-                    mimeType: 'audio/pcm;rate=16000'
-                }]
+        
+        if (e.data.type === 'vad') {
+            if (e.data.isSpeaking) {
+                // User started speaking, instantly cut off AI playback
+                stopAudioPlayback();
+            } else {
+                // User stopped speaking, signal turn complete
+                sendToGemini({
+                    clientContent: {
+                        turnComplete: true
+                    }
+                });
             }
-        });
+            return;
+        }
+
+        if (e.data.type === 'audio') {
+            const inputData = e.data.data;
+            const pcm16 = floatTo16BitPCM(inputData);
+            // Optimized Base64 conversion
+            const base64Audio = arrayBufferToBase64(pcm16.buffer);
+
+            sendToGemini({
+                realtimeInput: {
+                    mediaChunks: [{
+                        data: base64Audio,
+                        mimeType: 'audio/pcm;rate=16000'
+                    }]
+                }
+            });
+        }
     };
 }
 
