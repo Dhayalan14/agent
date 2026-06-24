@@ -54,7 +54,7 @@ let state = {
     audioContext: null,
     inputAnalyser: null,  // For Mic
     outputAnalyser: null, // For AI
-    processor: null,
+    workletNode: null,
     stream: null,
     memory: JSON.parse(localStorage.getItem('user_memory') || '{}'),
     calendar: JSON.parse(localStorage.getItem('user_calendar') || '[]'),
@@ -377,16 +377,44 @@ async function initAudio() {
     state.inputAnalyser.smoothingTimeConstant = 0.8;
     source.connect(state.inputAnalyser);
 
-    // Aggressive buffer size: 1024 (approx 64ms latency)
-    state.processor = state.audioContext.createScriptProcessor(1024, 1, 1);
+    // Use AudioWorklet instead of deprecated ScriptProcessor
+    const workletCode = `
+    class PCMProcessor extends AudioWorkletProcessor {
+        constructor() {
+            super();
+            this.buffer = new Float32Array(1024);
+            this.bufferIndex = 0;
+        }
+        process(inputs, outputs, parameters) {
+            const input = inputs[0];
+            if (input.length > 0 && input[0]) {
+                const channelData = input[0];
+                for (let i = 0; i < channelData.length; i++) {
+                    this.buffer[this.bufferIndex++] = channelData[i];
+                    if (this.bufferIndex >= this.buffer.length) {
+                        this.port.postMessage(this.buffer);
+                        this.buffer = new Float32Array(1024);
+                        this.bufferIndex = 0;
+                    }
+                }
+            }
+            return true;
+        }
+    }
+    registerProcessor('pcm-processor', PCMProcessor);
+    `;
+    const blob = new Blob([workletCode], { type: 'application/javascript' });
+    const blobURL = URL.createObjectURL(blob);
 
-    source.connect(state.processor);
-    state.processor.connect(state.audioContext.destination);
+    await state.audioContext.audioWorklet.addModule(blobURL);
+    state.workletNode = new AudioWorkletNode(state.audioContext, 'pcm-processor');
 
-    state.processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
+    source.connect(state.workletNode);
+    state.workletNode.connect(state.audioContext.destination);
+
+    state.workletNode.port.onmessage = (e) => {
         if (!state.isConnected) return;
-
+        const inputData = e.data;
         const pcm16 = floatTo16BitPCM(inputData);
         // Optimized Base64 conversion
         const base64Audio = arrayBufferToBase64(pcm16.buffer);
@@ -412,11 +440,12 @@ function floatTo16BitPCM(input) {
 }
 
 function arrayBufferToBase64(buffer) {
-    let binary = '';
     const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
+    // Process in chunks to avoid stack overflow for large buffers
+    const chunkSize = 0x8000; 
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
     }
     return btoa(binary);
 }
@@ -480,6 +509,15 @@ const outAudioCtx = new (window.AudioContext || window.webkitAudioContext)({
     latencyHint: 'interactive'
 });
 let nextPlayTime = 0;
+let activeSources = [];
+
+function stopAudioPlayback() {
+    activeSources.forEach(src => {
+        try { src.stop(); } catch (e) {}
+    });
+    activeSources = [];
+    nextPlayTime = 0;
+}
 
 async function handleGeminiResponse(resp) {
     // Initial handshake
@@ -502,15 +540,28 @@ async function handleGeminiResponse(resp) {
         return;
     }
 
+    let allToolResponses = [];
+
     // Tool Calls
     const toolCall = resp.toolCall || resp.tool_call;
     if (toolCall) {
         const calls = toolCall.functionCalls || toolCall.function_calls;
-        if (calls) calls.forEach(execTool);
+        if (calls) {
+            calls.forEach(call => {
+                const res = execTool(call);
+                if (res) allToolResponses.push(res);
+            });
+        }
     }
 
     // Audio Content
     const content = resp.serverContent || resp.server_content;
+    
+    // Check for interruption
+    if (content?.interrupted) {
+        stopAudioPlayback();
+    }
+    
     const turn = content?.modelTurn || content?.model_turn;
     if (turn?.parts) {
         if (outAudioCtx.state === 'suspended') await outAudioCtx.resume();
@@ -518,8 +569,22 @@ async function handleGeminiResponse(resp) {
             const data = p.inlineData?.data || p.inline_data?.data;
             if (data) playChunk(data);
             const calls = p.functionCalls || p.function_calls;
-            if (calls) calls.forEach(execTool);
+            if (calls) {
+                calls.forEach(call => {
+                    const res = execTool(call);
+                    if (res) allToolResponses.push(res);
+                });
+            }
         }
+    }
+    
+    // Send batched tool responses
+    if (allToolResponses.length > 0) {
+        sendToGemini({
+            toolResponse: {
+                functionResponses: allToolResponses
+            }
+        });
     }
 }
 
@@ -550,15 +615,11 @@ function execTool(call) {
         }
     }
 
-    sendToGemini({
-        toolResponse: {
-            functionResponses: [{
-                name: call.name,
-                id: call.id,
-                response: { result: result }
-            }]
-        }
-    });
+    return {
+        name: call.name,
+        id: call.id,
+        response: { result: result }
+    };
 }
 
 function playChunk(b64) {
@@ -592,6 +653,12 @@ function playChunk(b64) {
         if (nextPlayTime < now) nextPlayTime = now;
         src.start(nextPlayTime);
         nextPlayTime += buf.duration;
+        
+        activeSources.push(src);
+        src.onended = () => {
+            const idx = activeSources.indexOf(src);
+            if (idx > -1) activeSources.splice(idx, 1);
+        };
     } catch (e) {
         console.error(e);
     }
@@ -601,7 +668,7 @@ function playChunk(b64) {
 
 async function startSession() {
     try {
-        nextPlayTime = 0;
+        stopAudioPlayback();
         await initAudio();
         connectToGemini();
         state.isListening = true;
@@ -620,6 +687,8 @@ function stopSession() {
     state.isConnected = false;
     irisCore.classList.remove('listening');
 
+    stopAudioPlayback();
+
     // Visual Feedback: Idle
     if (irisText) {
         irisText.classList.remove('logo-connecting');
@@ -628,6 +697,10 @@ function stopSession() {
 
     if (state.ws) state.ws.close();
     if (state.stream) state.stream.getTracks().forEach(t => t.stop());
+    if (state.audioContext) {
+        state.audioContext.close();
+        state.audioContext = null;
+    }
 }
 
 
